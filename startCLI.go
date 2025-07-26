@@ -72,23 +72,34 @@ func startCLI() {
 
 		// if we get pass this means we have a valid command for execution
 
-		// Special case: If cd is used for changing directory or the user wants to clear the screen
-		// seperate from other commands as these are  normal execution commands
-		if commandName == "cd" {
-			if len(cleanedInput) == 1 {
-				home, err := os.UserHomeDir()
-				if err != nil {
-					fmt.Println(err)
-				}
-				os.Chdir(home)
-				continue
-			} else if len(cleanedInput) > 1 {
-				os.Chdir(cleanedInput[1])
-				continue
-			} else if len(cleanedInput) > 2 {
-				fmt.Println("cd: too many arguments")
-				continue
+		// If cd is used for changing directory or the user wants to clear the screen
+		// seperate from other commands as these are normal execution commands
+		if commandName == "cd" && len(cleanedInput) > 1 {
+			err := os.Chdir(cleanedInput[1])
+			if err != nil {
+				fmt.Printf("cd: %v\n", err)
 			}
+			// Restart shell in new working directory
+			stdin.Close()
+			shell.Process.Kill()
+			shell.Wait()
+
+			// Restart new shell in updated dir
+			if runtime.GOOS == "windows" {
+				shell = exec.Command("powershell", "-NoLogo", "-NoProfile", "-Command", "-")
+			} else {
+				shell = exec.Command("bash", "--noprofile", "--norc")
+			}
+
+			shell.Dir, _ = os.Getwd() // set working directory
+
+			stdin, _ = shell.StdinPipe()
+			stdout, _ = shell.StdoutPipe()
+			stderr, _ = shell.StderrPipe()
+			out = bufio.NewReader(stdout)
+			errR = bufio.NewReader(stderr)
+			shell.Start()
+			continue
 		}
 
 		if commandName == "clear" || commandName == "cls" {
